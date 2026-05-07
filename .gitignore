@@ -49,6 +49,13 @@ debug.log
 .pnpm-store
 sandbox_image_cache.tar
 
+# Runtime temp directories
+temp/
+
+# Test caches
+.pytest_cache/
+backend/.pytest_cache/
+
 # ignore the legacy `web` folder
 web/
 
