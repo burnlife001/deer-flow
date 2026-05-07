@@ -263,6 +263,15 @@ sync_upstream() {
         return 1
     fi
 
+    # Stop services before sync to avoid port/build conflicts
+    local any_running=false
+    if [ -n "$(_get_pid "$GW_PID_FILE")" ] || [ -n "$(_get_pid "$FE_PID_FILE")" ] || [ -n "$(_get_pid "$NGX_PID_FILE")" ]; then
+        any_running=true
+        yellow "Services running, stopping before sync..."
+        stop_all
+        sleep 1
+    fi
+
     # Auto-commit if working tree is dirty
     if [ -n "$(git status --porcelain)" ]; then
         yellow "Working tree is dirty, auto-committing..."
@@ -343,6 +352,13 @@ sync_upstream() {
         fi
     fi
 
+    # Restart services if they were running before sync
+    if [ "$any_running" = true ]; then
+        echo ""
+        yellow "Restarting services..."
+        start_all
+    fi
+
     echo ""
 }
 
@@ -380,8 +396,38 @@ show_menu() {
     fi
 }
 
+# ── Init ─────────────────────────────────────────────────────────────────────
+init_tools() {
+    local nginx_dir="$REPO_ROOT/.tools/nginx"
+    local nginx_url="https://nginx.org/download/nginx-1.29.8.zip"
+
+    if [ ! -f "$nginx_dir/nginx.exe" ]; then
+        yellow "Bundled nginx not found, downloading..."
+        mkdir -p "$nginx_dir"
+        local zip_file="$REPO_ROOT/.tools/nginx.zip"
+        if command -v curl >/dev/null 2>&1; then
+            curl -L -o "$zip_file" "$nginx_url"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$zip_file" "$nginx_url"
+        else
+            red "Neither curl nor wget found. Please install one of them."
+            return 1
+        fi
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$zip_file" -d "$REPO_ROOT/.tools/"
+            mv "$REPO_ROOT/.tools/nginx-1.29.8"/* "$nginx_dir/"
+            rm -rf "$REPO_ROOT/.tools/nginx-1.29.8" "$zip_file"
+            green "Nginx downloaded to $nginx_dir"
+        else
+            red "unzip not found. Please install unzip."
+            return 1
+        fi
+    fi
+}
+
 # ── Main loop ────────────────────────────────────────────────────────────────
 main() {
+    init_tools
     while true; do
         show_menu
     done
