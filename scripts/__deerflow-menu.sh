@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # DeerFlow Service Manager — Interactive menu for starting/stopping services
-# Usage: bash scripts/deerflow-menu.sh
+# Usage: bash scripts/__deerflow-menu.sh
 
 set -e
 
@@ -264,22 +264,21 @@ sync_upstream() {
         return 1
     fi
 
+    # Require clean working tree
+    if [ -n "$(git status --porcelain)" ]; then
+        red "Working tree is not clean. Please commit or stash your changes first."
+        yellow "  git add -A && git commit -m '...'"
+        return 1
+    fi
+
     local original_branch
     original_branch=$(git rev-parse --abbrev-ref HEAD)
-
-    local stashed=false
-    if [ -n "$(git status --porcelain)" ]; then
-        yellow "Local changes detected on '$original_branch', stashing..."
-        git stash push -m "deerflow-menu-auto-stash-$(date +%s)"
-        stashed=true
-    fi
 
     # Switch to main for sync
     if [ "$original_branch" != "main" ]; then
         echo "Switching to main..."
         if ! git checkout main; then
             red "Failed to checkout main"
-            [ "$stashed" = true ] && git stash pop
             return 1
         fi
     fi
@@ -291,14 +290,12 @@ sync_upstream() {
     if ! git fetch upstream; then
         red "Fetch upstream failed"
         [ "$original_branch" != "main" ] && git checkout "$original_branch"
-        [ "$stashed" = true ] && git stash pop
         return 1
     fi
 
     echo "Merging upstream/main..."
     if ! git merge upstream/main --no-edit; then
         red "Merge conflict! Resolve manually, then run again."
-        [ "$stashed" = true ] && yellow "Your changes are stashed: git stash list"
         return 1
     fi
 
@@ -316,7 +313,6 @@ sync_upstream() {
             else
                 red "Build failed! Check logs/frontend-build.log"
                 cd "$REPO_ROOT"
-                [ "$stashed" = true ] && yellow "Run 'git stash pop' after fixing."
                 return 1
             fi
             cd "$REPO_ROOT"
@@ -326,20 +322,24 @@ sync_upstream() {
         if ! git push origin main; then
             red "Push failed"
             [ "$original_branch" != "main" ] && git checkout "$original_branch"
-            [ "$stashed" = true ] && git stash pop
             return 1
         fi
         green "Push successful"
     fi
 
-    # Switch back to original branch
+    # Switch back to original branch and auto-rebase
     if [ "$original_branch" != "main" ]; then
         echo "Switching back to $original_branch..."
         git checkout "$original_branch"
-        cyan "Next step: git rebase main"
+        echo "Rebasing $original_branch onto main..."
+        if git rebase main; then
+            green "Rebase successful"
+        else
+            red "Rebase conflict! Resolve manually, then run: git rebase --continue"
+            return 1
+        fi
     fi
 
-    [ "$stashed" = true ] && git stash pop
     echo ""
 }
 
