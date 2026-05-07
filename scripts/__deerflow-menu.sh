@@ -383,7 +383,7 @@ show_menu() {
         3) restart_all ;;
         4) sync_upstream ;;
         0)
-            stop_all
+            # stop_all
             echo "Bye."
             exit 0
             ;;
