@@ -253,9 +253,9 @@ restart_all() {
     start_all
 }
 
-pull_build_push() {
+sync_upstream() {
     echo ""
-    cyan "========== Pull → Build → Push =========="
+    cyan "========== Sync main with upstream =========="
     echo ""
 
     if ! git remote | grep -q "^upstream$"; then
@@ -264,26 +264,33 @@ pull_build_push() {
         return 1
     fi
 
-    local branch
-    branch=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$branch" != "main" ]; then
-        red "Current branch is '$branch', not main. Switch to main first."
-        return 1
+    local original_branch
+    original_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    local stashed=false
+    if [ -n "$(git status --porcelain)" ]; then
+        yellow "Local changes detected on '$original_branch', stashing..."
+        git stash push -m "deerflow-menu-auto-stash-$(date +%s)"
+        stashed=true
+    fi
+
+    # Switch to main for sync
+    if [ "$original_branch" != "main" ]; then
+        echo "Switching to main..."
+        if ! git checkout main; then
+            red "Failed to checkout main"
+            [ "$stashed" = true ] && git stash pop
+            return 1
+        fi
     fi
 
     local pre_hash
     pre_hash=$(git rev-parse HEAD)
 
-    local stashed=false
-    if [ -n "$(git status --porcelain)" ]; then
-        yellow "Local changes detected, stashing..."
-        git stash push -m "deerflow-menu-auto-stash-$(date +%s)"
-        stashed=true
-    fi
-
     echo "Fetching upstream..."
     if ! git fetch upstream; then
         red "Fetch upstream failed"
+        [ "$original_branch" != "main" ] && git checkout "$original_branch"
         [ "$stashed" = true ] && git stash pop
         return 1
     fi
@@ -297,33 +304,39 @@ pull_build_push() {
 
     local post_hash
     post_hash=$(git rev-parse HEAD)
+
     if [ "$pre_hash" = "$post_hash" ]; then
         green "Already up to date."
-        [ "$stashed" = true ] && git stash pop
-        return 0
-    fi
-
-    if git diff --name-only "$pre_hash" "$post_hash" | grep -q "^frontend/"; then
-        yellow "Frontend changes detected, running build check..."
-        cd frontend
-        if pnpm build > ../logs/frontend-build.log 2>&1; then
-            green "Build check passed"
-        else
-            red "Build failed! Check logs/frontend-build.log"
+    else
+        if git diff --name-only "$pre_hash" "$post_hash" | grep -q "^frontend/"; then
+            yellow "Frontend changes detected, running build check..."
+            cd frontend
+            if pnpm build > ../logs/frontend-build.log 2>&1; then
+                green "Build check passed"
+            else
+                red "Build failed! Check logs/frontend-build.log"
+                cd "$REPO_ROOT"
+                [ "$stashed" = true ] && yellow "Run 'git stash pop' after fixing."
+                return 1
+            fi
             cd "$REPO_ROOT"
-            [ "$stashed" = true ] && yellow "Run 'git stash pop' after fixing."
+        fi
+
+        echo "Pushing to origin..."
+        if ! git push origin main; then
+            red "Push failed"
+            [ "$original_branch" != "main" ] && git checkout "$original_branch"
+            [ "$stashed" = true ] && git stash pop
             return 1
         fi
-        cd "$REPO_ROOT"
+        green "Push successful"
     fi
 
-    echo "Pushing to origin..."
-    if git push origin main; then
-        green "Push successful"
-    else
-        red "Push failed"
-        [ "$stashed" = true ] && git stash pop
-        return 1
+    # Switch back to original branch
+    if [ "$original_branch" != "main" ]; then
+        echo "Switching back to $original_branch..."
+        git checkout "$original_branch"
+        cyan "Next step: git rebase main"
     fi
 
     [ "$stashed" = true ] && git stash pop
@@ -338,7 +351,7 @@ show_menu() {
     echo "  1) Start all services    (dev mode)"
     echo "  2) Stop all services"
     echo "  3) Restart services"
-    echo "  4) Pull → Build → Push"
+    echo "  4) Sync main with upstream"
     echo ""
     echo "  0) Exit"
     echo ""
@@ -349,7 +362,7 @@ show_menu() {
         1) start_all ;;
         2) stop_all ;;
         3) restart_all ;;
-        4) pull_build_push ;;
+        4) sync_upstream ;;
         0)
             stop_all
             echo "Bye."
