@@ -120,9 +120,8 @@ start_all() {
 
     cleanup_ports
 
-    # Nginx proxy_set_header Host $host strips the port, so the backend sees
-    # Host=localhost while the browser sends Origin=http://localhost:2026.
-    # CSRF middleware rejects this mismatch. Explicitly whitelist the proxy URL.
+    # Nginx now passes $http_host (includes port) so origin matches.
+    # Keep this as a fallback safety net.
     export GATEWAY_CORS_ORIGINS="http://localhost:2026"
 
     echo "Starting DeerFlow services (dev mode)..."
@@ -264,11 +263,15 @@ sync_upstream() {
         return 1
     fi
 
-    # Require clean working tree
+    # Auto-commit if working tree is dirty
     if [ -n "$(git status --porcelain)" ]; then
-        red "Working tree is not clean. Please commit or stash your changes first."
-        yellow "  git add -A && git commit -m '...'"
-        return 1
+        yellow "Working tree is dirty, auto-committing..."
+        git add -A
+        if ! git commit -m "auto: sync upstream $(date '+%Y-%m-%d %H:%M:%S')"; then
+            red "Auto-commit failed"
+            return 1
+        fi
+        green "Auto-commit done"
     fi
 
     local original_branch
