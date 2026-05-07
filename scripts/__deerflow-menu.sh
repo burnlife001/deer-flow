@@ -42,6 +42,19 @@ _ensure_pid_dir() {
     mkdir -p "$PID_DIR"
 }
 
+# ── Log rotation ─────────────────────────────────────────────────────────────
+_rotate_log() {
+    local log_file="$1"
+    if [ ! -f "$log_file" ]; then
+        return 0
+    fi
+    local size
+    size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null || echo 0)
+    if [ "$size" -gt 10485760 ]; then
+        mv "$log_file" "${log_file}.$(date +%Y%m%d_%H%M%S).bak"
+    fi
+}
+
 LOCAL_NGINX_DIR="$REPO_ROOT/.tools/nginx"
 LOCAL_NGINX_EXE="$LOCAL_NGINX_DIR/nginx.exe"
 
@@ -130,6 +143,11 @@ start_all() {
 
     mkdir -p logs
     mkdir -p temp/client_body_temp temp/proxy_temp temp/fastcgi_temp temp/uwsgi_temp temp/scgi_temp
+
+    # Rotate logs if they exceed 10MB
+    _rotate_log "$REPO_ROOT/logs/gateway.log"
+    _rotate_log "$REPO_ROOT/logs/frontend.log"
+    _rotate_log "$REPO_ROOT/logs/nginx.log"
 
     # Gateway — use exec in subshell so $! is the uvicorn PID, not a shell wrapper
     echo -n "Starting Gateway... "
