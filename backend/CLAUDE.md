@@ -210,7 +210,7 @@ Lead-agent middlewares are assembled in strict append order across `packages/har
 14. **ViewImageMiddleware** - Injects base64 image data before LLM call (conditional on vision support)
 15. **DeferredToolFilterMiddleware** - Hides deferred tool schemas from the bound model until tool search is enabled (optional)
 16. **SubagentLimitMiddleware** - Truncates excess `task` tool calls from model response to enforce `MAX_CONCURRENT_SUBAGENTS` limit (optional, if `subagent_enabled`)
-17. **LoopDetectionMiddleware** - Detects repeated tool-call loops; hard-stop responses clear both structured `tool_calls` and raw provider tool-call metadata before forcing a final text answer
+17. **LoopDetectionMiddleware** - Detects repeated tool-call loops; warn-path responses embed the warning text into the existing AIMessage (preserves `tool_calls` so the strict `assistant.tool_calls → tool` ordering required by DeepSeek and friends is not violated), while hard-stop responses clear both structured `tool_calls` and raw provider tool-call metadata before forcing a final text answer
 18. **ClarificationMiddleware** - Intercepts `ask_clarification` tool calls, interrupts via `Command(goto=END)` (must be last)
 
 ### Configuration System

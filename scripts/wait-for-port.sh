@@ -34,9 +34,19 @@ is_port_listening() {
     fi
 
     if command -v netstat >/dev/null 2>&1; then
+        # Linux format
         if netstat -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[.:])${PORT}$"; then
             return 0
         fi
+        # Windows format (netstat -an)
+        if netstat -an 2>/dev/null | grep -E "TCP\s+[^ ]+:${PORT}\s+" | grep -q LISTENING; then
+            return 0
+        fi
+    fi
+
+    # Fallback: bash /dev/tcp probe
+    if timeout 1 bash -c "echo >/dev/tcp/localhost/$PORT" 2>/dev/null; then
+        return 0
     fi
 
     return 1
