@@ -325,7 +325,10 @@ sync_upstream() {
 
     echo "Merging upstream/main..."
     if ! git merge upstream/main --no-edit; then
-        red "Merge conflict! Resolve manually, then run again."
+        red "Merge conflict on main! Aborting merge..."
+        git merge --abort
+        yellow "Resolve manually: git checkout main && git merge upstream/main"
+        [ "$original_branch" != "main" ] && git checkout "$original_branch"
         return 1
     fi
 
@@ -365,7 +368,11 @@ sync_upstream() {
         if git rebase main; then
             green "Rebase successful"
         else
-            red "Rebase conflict! Resolve manually, then run: git rebase --continue"
+            red "Rebase conflict! Auto-aborting..."
+            git rebase --abort
+            yellow "Your branch is unchanged. To rebase manually:"
+            yellow "  git checkout $original_branch && git rebase main"
+            yellow "  (resolve conflicts, then: git add ... && git rebase --continue)"
             return 1
         fi
     fi
