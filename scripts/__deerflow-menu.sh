@@ -77,19 +77,19 @@ show_status() {
     echo ""
 
     if [ -n "$gw_pid" ]; then
-        echo -n "  Gateway  : "; green "running  (PID: $gw_pid, port: 8001)"
+        echo -n "  Gateway  : "; green "running  (PID: $gw_pid, http://localhost:8001)"
     else
         echo -n "  Gateway  : "; red   "stopped"
     fi
 
     if [ -n "$fe_pid" ]; then
-        echo -n "  Frontend : "; green "running  (PID: $fe_pid, port: 3000)"
+        echo -n "  Frontend : "; green "running  (PID: $fe_pid, http://localhost:3000)"
     else
         echo -n "  Frontend : "; red   "stopped"
     fi
 
     if [ -n "$ngx_pid" ]; then
-        echo -n "  Nginx    : "; green "running  (PID: $ngx_pid, port: 2026)"
+        echo -n "  Nginx    : "; green "running  (PID: $ngx_pid, http://localhost:2026)"
     else
         echo -n "  Nginx    : "; red   "stopped"
     fi
@@ -112,7 +112,7 @@ cleanup_ports() {
             killed=true
         fi
     done
-    $killed && sleep 1
+    $killed && sleep 1 || true
 }
 
 # ── Start ────────────────────────────────────────────────────────────────────
